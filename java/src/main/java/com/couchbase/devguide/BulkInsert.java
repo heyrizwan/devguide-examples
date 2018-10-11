@@ -17,36 +17,35 @@ import rx.functions.Func1;
  */
 public class BulkInsert extends ConnectionBase {
 
-    @Override
+   @Override
     protected void doWork() {
-        final String key = "javaDevguideExampleBulkGet";
+        final String key = "javaDevguideExampleBulkInsert";
 
         // Create a JSON document content
-        final JsonObject content = JsonObject.create().put("item", "A bulk get test value");
-
-        // Prepare 10 keys
-        List<String> keys = new ArrayList<String>(10);
-        for (int i = 0; i < 10; i++) {
-            keys.add(key + "_" + i);
-        }
-
-        // Insert 10 documents, the old way
-        for (String id : keys) {
-            JsonDocument doc = JsonDocument.create(id, content);
-            bucket.upsert(doc);
-        }
+        final JsonObject content = JsonObject.create().put("item", "A bulk insert test value");
 
         // Describe what we want to do asynchronously using RxJava Observables:
 
-        Observable<JsonDocument> asyncBulkGet = Observable
-                // Use RxJava from to start from the keys we know in advance
-                .from(keys)
-                //now use flatMap to asynchronously retrieve (get) each corresponding document using the SDK
-                .flatMap(new Func1<String, Observable<JsonDocument>>() {
-                    public Observable<JsonDocument> call(String key) {
-                        if (key.endsWith("3"))
-                            return bucket.async().get(key).delay(3, TimeUnit.SECONDS); //artificial delay for item 3
-                        return bucket.async().get(key);
+        Observable<JsonDocument> asyncProcessing = Observable
+                // Use RxJava range + map to generate 10 keys. One could also use "from" with a pre-existing collection of keys.
+                .range(0, 10)
+                .map(new Func1<Integer, String>() {
+                    public String call(Integer i) {
+                        return key + "_" + i;
+                    }
+                })
+                //then create a JsonDocument out each one of these keys
+                .map(new Func1<String, JsonDocument>() {
+                    public JsonDocument call(String s) {
+                        return JsonDocument.create(s, content);
+                    }
+                })
+                //now use flatMap to asynchronously call the SDK upsert operation on each
+                .flatMap(new Func1<JsonDocument, Observable<JsonDocument>>() {
+                    public Observable<JsonDocument> call(JsonDocument doc) {
+                        if (doc.id().endsWith("3"))
+                            return bucket.async().upsert(doc).delay(3, TimeUnit.SECONDS); //artificial delay for item 3
+                        return bucket.async().upsert(doc);
                     }
                 });
 
@@ -62,18 +61,19 @@ public class BulkInsert extends ConnectionBase {
          *  in which the server answered...
          */
         try {
-            asyncBulkGet.toBlocking()
-                    // we'll still printout each inserted document (with CAS gotten from the server)
-                    // toBlocking() also offers several ways of getting one of the emitted values (first(), single(), last())
-                    .forEach(new Action1<JsonDocument>() {
-                        public void call(JsonDocument jsonDocument) {
-                            LOGGER.info("Found " + jsonDocument);
-                        }
-                    });
+            asyncProcessing.toBlocking()
+                // we'll still printout each inserted document (with CAS gotten from the server)
+                // toBlocking() also offers several ways of getting one of the emitted values (first(), single(), last())
+                .forEach(new Action1<JsonDocument>() {
+                    public void call(JsonDocument jsonDocument) {
+                        LOGGER.info("Inserted " + jsonDocument);
+                    }
+                });
         } catch (Exception e) {
-            LOGGER.error("Error during bulk get", e);
+            LOGGER.error("Error during bulk insert", e);
         }
     }
+
 
     public static void main(String[] args) {
         new BulkInsert().execute();
