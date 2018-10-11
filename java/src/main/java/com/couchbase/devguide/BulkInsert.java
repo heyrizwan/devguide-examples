@@ -49,6 +49,8 @@ public class BulkInsert extends ConnectionBase {
                         return bucket.async().upsert(doc);
                     }
                 });
+       
+       
 
         // So far we've described and not triggered the processing, let's subscribe
         /*
