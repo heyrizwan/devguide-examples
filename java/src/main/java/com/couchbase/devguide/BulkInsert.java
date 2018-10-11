@@ -19,6 +19,7 @@ public class BulkInsert extends ConnectionBase {
 
    @Override
     protected void doWork() {
+       
         final String key = "javaDevguideExampleBulkInsert";
 
         // Create a JSON document content
